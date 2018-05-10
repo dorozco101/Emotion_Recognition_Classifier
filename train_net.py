@@ -1,7 +1,3 @@
-# reference
-# https://towardsdatascience.com/transfer-learning-using-pytorch-4c3475f4495
-from __future__ import print_function, division
-
 import torch
 import torch.nn as nn
 import torch.optim as optim
