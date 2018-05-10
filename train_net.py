@@ -7,14 +7,14 @@ import numpy as np
 import torchvision
 from torchvision import datasets, models, transforms
 import matplotlib.pyplot as plt
-import time
+
 import os
 import copy
 import torchvision.models as models
 from torchvision.models.resnet import model_urls as model_url_resnet
 from torchvision.models.alexnet import model_urls as model_url_alexnet
 from torchvision.models.vgg import model_urls as model_url_vgg
-import requests
+
 import argparse
 import logging
 
