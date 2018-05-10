@@ -153,7 +153,7 @@ def main():
                 model.fc= nn.Linear(512, out_features=class_num)
             else:
                 model.classifier._modules['6']= nn.Linear(4096, out_features=class_num)  
-                
+        #optimizer must match the number of trainable parameters (should not include non trainable layers)
         if not arg.train_all_para_f:
             optimizer = optim.SGD(params=[model.fc.weight, model.fc.bias], lr=arg.lr, momentum=arg.m)
         else:
