@@ -76,7 +76,7 @@ def main():
     }
 	
     if arg.dataset == 'Emotions':
-        train_path = '/data/train
+        train_path = '/data/train'
         val_path = '/data/test'
     elif arg.dataset == 'ImageNet':
         #these paths need to be updated to something local
