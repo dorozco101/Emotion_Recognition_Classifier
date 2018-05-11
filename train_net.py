@@ -101,13 +101,13 @@ def main():
 	print("hello")
 	for folder in os.listdir(val_path):
          
-         image_datasets_all['test'].append(datasets.ImageFolder(os.path.join(val_path),data_transforms['test']))
+         image_datasets_all['test'].append(datasets.ImageFolder(os.path.join(val_path+'/'+folder),data_transforms['test']))
 
 	for numberOfRetests in range(1):
 		image_datasets_all['train'] = []
-		#for folder in os.listdir(train_path):
-			#print(train_path+'/'+folder)
-		image_datasets_all['train'].append(datasets.ImageFolder(os.path.join(train_path),data_transforms['train']))
+		for folder in os.listdir(train_path):
+			print(train_path+'/'+folder)
+			image_datasets_all['train'].append(datasets.ImageFolder(os.path.join(train_path+'/'+folder),data_transforms['train']))
 			
 		image_datasets = {}
 
