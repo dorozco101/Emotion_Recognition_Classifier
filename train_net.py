@@ -26,7 +26,7 @@ parser.add_argument('--lr', '--learning-rate', action='store', default=0.01, typ
 parser.add_argument('--m', '--momentum', action='store', default=0.9, type=float, help='momentum (default: 0.9)')
 parser.add_argument('--train_f', action='store_false', default=True, help='Flag to train (STORE_FALSE)(default: True)')
 parser.add_argument('--train_all_para_f', action='store_false', default=True, help='Flag to train all parameters (default: True)')
-parser.add_argument('--useGPU_f', action='store_false', default=True, help='Flag to use GPU (STORE_FALSE)(default: False)')
+parser.add_argument('--useGPU_f', action='store_true', default=False, help='Flag to use GPU (STORE_FALSE)(default: False)')
 parser.add_argument('--preTrained_f', action='store_true', default=False, help='Flag to pretrained model (default: True)')
 parser.add_argument("--net", default='AlexNet', const='AlexNet',nargs='?', choices=['AlexNet', 'ResNet', 'VGG'], help="net model(default:AlexNet)")
 parser.add_argument("--dataset", default='Emotions', const='Emotions',nargs='?', choices=['Emotions', 'ImageNet'], help="Dataset (default:Emotions)")
@@ -62,10 +62,11 @@ def main():
 	# load the data
 	data_transforms = {
 		'train': transforms.Compose([
-			transforms.RandomResizedCrop(224),
-			transforms.RandomHorizontalFlip(),
-			transforms.ToTensor(),
-			transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+            transforms.Resize(256),
+            transforms.RandomResizedCrop(224),
+            transforms.RandomHorizontalFlip(),
+            transforms.ToTensor(),
+            transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
 		]),
 		'test': transforms.Compose([
 			transforms.Resize(256),
@@ -76,8 +77,8 @@ def main():
 	}
 	
 	if arg.dataset == 'Emotions':
-		train_path = '/data/train'
-		val_path = '/data/test'
+		train_path = './data/train'
+		val_path = './data/test'
 	elif arg.dataset == 'ImageNet':
 		#these paths need to be updated to something local
 		train_path = '/data/imgDB/DB/ILSVRC/2012/train'
@@ -97,11 +98,17 @@ def main():
 	results = []
 	image_datasets_all['test'] = []
 	#test on all angles
-	image_datasets_all['test'].append(datasets.ImageFolder(os.path.join(val_path),data_transforms['test']))
+	print("hello")
+	for folder in os.listdir(val_path):
+         
+         image_datasets_all['test'].append(datasets.ImageFolder(os.path.join(val_path),data_transforms['test']))
 
 	for numberOfRetests in range(1):
-		image_datasets_all['train'] = []     
+		image_datasets_all['train'] = []
+		#for folder in os.listdir(train_path):
+			#print(train_path+'/'+folder)
 		image_datasets_all['train'].append(datasets.ImageFolder(os.path.join(train_path),data_transforms['train']))
+			
 		image_datasets = {}
 
 		for i in image_datasets_all:
@@ -209,6 +216,8 @@ def main():
 				# use cross entropy loss
 				criterion = nn.CrossEntropyLoss()
 				outputs = model(x)
+				#print("num clsses: " + str(class_num))
+				#print(target)
 				loss = criterion(outputs, target)
 				_, pred_label = torch.max(outputs.data, 1)
 				#print("This is pred label")
