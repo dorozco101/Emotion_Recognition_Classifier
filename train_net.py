@@ -118,7 +118,7 @@ def main():
 		 # use the pytorch data loader
 		arr = ['train', 'test'] if arg.train_f else ['test']
 		print("Data Loading......")
-		dataloaders = {x: torch.utils.data.DataLoader(image_datasets[x], batch_size=batch_size, shuffle=True, num_workers=4)
+		dataloaders = {x: torch.utils.data.DataLoader(image_datasets[x], batch_size=batch_size, shuffle=True, num_workers=0)
 				  for x in arr}
 
 		dataset_sizes = {x: len(image_datasets[x]) for x in arr}
@@ -187,8 +187,8 @@ def main():
 
 		print("starting")
 
-		model_path = '/data/old_model_'+arg.net+'_'+str(arg.dataset)+'.pt'
-		test_path = '/data/old_model_'+arg.net+'_'+'test'+str(arg.dataset)+'.pt'
+		model_path = './data/old_model_'+arg.net+'_'+str(arg.dataset)+'.pt'
+		test_path = './data/old_model_'+arg.net+'_'+'test'+str(arg.dataset)+'.pt'
 
 		#check if 
 		if os.path.isfile(model_path):
@@ -223,7 +223,7 @@ def main():
 				#print("This is pred label")
 				#print(pred_label)
 				
-				correct = (pred_label == target.data).sum()
+				correct = (pred_label == target.data).sum().data.numpy()
 				overall_acc += correct
 				accuracy = correct*1.0/batch_size
 
@@ -270,7 +270,7 @@ def main():
 					correct_class[pred_label[i]] += 1
 				count_class[target.data[i]] += 1
 
-			correct += (pred_label == target.data).sum()
+			correct += (pred_label == target.data).sum().data.numpy()
 			ave_loss += loss.data[0]
 
 
