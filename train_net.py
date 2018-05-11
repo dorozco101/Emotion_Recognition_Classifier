@@ -97,13 +97,14 @@ def main():
     results = []
     image_datasets_all['test'] = []
     #test on all angles
-    image_datasets_all['test'].append(datasets.ImageFolder(os.path.join(val_path,data_transforms['test']))
+    image_datasets_all['test'].append(datasets.ImageFolder(os.path.join(val_path,data_transforms['test'])))
        
-    for numberOfRetests in range(1):    
-        image_datasets_all['train'] = []     
-        image_datasets_all['train'].append(datasets.ImageFolder(os.path.join(train_path),data_transforms['train']))                       
-        image_datasets = {}
-        for i in image_datasets_all:
+	for numberOfRetests in range(1):
+		image_datasets_all['train'] = []     
+		image_datasets_all['train'].append(datasets.ImageFolder(os.path.join(train_path),data_transforms['train']))
+		image_datasets = {}
+
+		for i in image_datasets_all:
             image_datasets[i] = torch.utils.data.ConcatDataset(image_datasets_all[i])
 
 
