@@ -223,7 +223,7 @@ def main():
 				#print("This is pred label")
 				#print(pred_label)
 				
-				correct = (pred_label == target.data).sum().data.numpy()
+				correct = (pred_label == target.data).sum().cpu().data.numpy()
 				overall_acc += correct
 				accuracy = correct*1.0/batch_size
 
@@ -270,7 +270,7 @@ def main():
 					correct_class[pred_label[i]] += 1
 				count_class[target.data[i]] += 1
 
-			correct += (pred_label == target.data).sum().data.numpy()
+			correct += (pred_label == target.data).sum().cpu().data.numpy()
 			ave_loss += loss.data[0]
 
 
