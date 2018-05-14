@@ -101,13 +101,13 @@ def main():
 	print("hello")
 	for folder in os.listdir(val_path):
          
-         image_datasets_all['test'].append(datasets.ImageFolder(os.path.join(val_path+'/'+folder),data_transforms['test']))
+         image_datasets_all['test'].append(datasets.ImageFolder(os.path.join(val_path),data_transforms['test']))
 
 	for numberOfRetests in range(1):
 		image_datasets_all['train'] = []
 		for folder in os.listdir(train_path):
 			print(train_path+'/'+folder)
-			image_datasets_all['train'].append(datasets.ImageFolder(os.path.join(train_path+'/'+folder),data_transforms['train']))
+			image_datasets_all['train'].append(datasets.ImageFolder(os.path.join(train_path),data_transforms['train']))
 			
 		image_datasets = {}
 
@@ -215,7 +215,10 @@ def main():
 				
 				# use cross entropy loss
 				criterion = nn.CrossEntropyLoss()
-				outputs = model(x)
+				if use_GPU:
+					outputs = model(x.cuda())
+				else:
+					outputs = model(x)
 				#print("num clsses: " + str(class_num))
 				#print(target)
 				loss = criterion(outputs, target)
@@ -223,7 +226,7 @@ def main():
 				#print("This is pred label")
 				#print(pred_label)
 				
-				correct = (pred_label == target.data).sum().data.numpy()
+				correct = (pred_label == target.data).sum().cpu().data.numpy()
 				overall_acc += correct
 				accuracy = correct*1.0/batch_size
 
@@ -232,8 +235,8 @@ def main():
 
 
 				if batch_idx%100==0:
-					print('==>>> epoch:{}, batch index: {}, train loss:{}, accuracy:{}'.format(epoch,batch_idx, loss.data[0], accuracy))
-					logger.info('==>>> epoch:{}, batch index: {}, train loss:{}, accuracy:{}'.format(epoch,batch_idx, loss.data[0], accuracy))
+					print('==>>> epoch:{}, batch index: {}, train loss:{}, accuracy:{}'.format(epoch,batch_idx, loss.item(), accuracy))
+					logger.info('==>>> epoch:{}, batch index: {}, train loss:{}, accuracy:{}'.format(epoch,batch_idx, loss.item(), accuracy))
 
 			# save the model per epochs
 			torch.save(model.state_dict(), test_path)
@@ -270,7 +273,7 @@ def main():
 					correct_class[pred_label[i]] += 1
 				count_class[target.data[i]] += 1
 
-			correct += (pred_label == target.data).sum().data.numpy()
+			correct += (pred_label == target.data).sum().cpu().data.numpy()
 			ave_loss += loss.data[0]
 
 
