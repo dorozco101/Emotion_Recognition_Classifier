@@ -105,9 +105,9 @@ def main():
 
 	for numberOfRetests in range(1):
 		image_datasets_all['train'] = []
-		#for folder in os.listdir(train_path):
-			#print(train_path+'/'+folder)
-		image_datasets_all['train'].append(datasets.ImageFolder(os.path.join(train_path),data_transforms['train']))
+		for folder in os.listdir(train_path):
+			print(train_path+'/'+folder)
+			image_datasets_all['train'].append(datasets.ImageFolder(os.path.join(train_path),data_transforms['train']))
 			
 		image_datasets = {}
 
@@ -215,7 +215,10 @@ def main():
 				
 				# use cross entropy loss
 				criterion = nn.CrossEntropyLoss()
-				outputs = model(x)
+				if use_GPU:
+					outputs = model(x.cuda())
+				else:
+					outputs = model(x)
 				#print("num clsses: " + str(class_num))
 				#print(target)
 				loss = criterion(outputs, target)
@@ -232,8 +235,8 @@ def main():
 
 
 				if batch_idx%100==0:
-					print('==>>> epoch:{}, batch index: {}, train loss:{}, accuracy:{}'.format(epoch,batch_idx, loss.data[0], accuracy))
-					logger.info('==>>> epoch:{}, batch index: {}, train loss:{}, accuracy:{}'.format(epoch,batch_idx, loss.data[0], accuracy))
+					print('==>>> epoch:{}, batch index: {}, train loss:{}, accuracy:{}'.format(epoch,batch_idx, loss.item(), accuracy))
+					logger.info('==>>> epoch:{}, batch index: {}, train loss:{}, accuracy:{}'.format(epoch,batch_idx, loss.item(), accuracy))
 
 			# save the model per epochs
 			torch.save(model.state_dict(), test_path)
