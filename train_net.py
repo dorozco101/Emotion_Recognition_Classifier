@@ -6,7 +6,7 @@ from torch.autograd import Variable
 import numpy as np
 import torchvision
 from torchvision import datasets, models, transforms
-# import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt
 
 import os
 import copy
@@ -30,6 +30,7 @@ parser.add_argument('--useGPU_f', action='store_true', default=False, help='Flag
 parser.add_argument('--preTrained_f', action='store_true', default=False, help='Flag to pretrained model (default: True)')
 parser.add_argument("--net", default='AlexNet', const='AlexNet',nargs='?', choices=['AlexNet', 'ResNet', 'VGG'], help="net model(default:AlexNet)")
 parser.add_argument("--dataset", default='Emotions', const='Emotions',nargs='?', choices=['Emotions', 'ImageNet'], help="Dataset (default:Emotions)")
+# parser.add_argument('')
 
 arg = parser.parse_args()
 
@@ -128,7 +129,8 @@ def main():
 		# number of classes should be 8 for emotion dataset
 
 		class_num = len(image_datasets_all['test'][0].classes)
-		print (class_num)
+		# print (class_num)
+		print(dataset_sizes)
 		print("Model Loading...")
 
 		if arg.net == 'AlexNet':
@@ -202,9 +204,14 @@ def main():
 		print("Start Training")
 		logger.info("Start Training")
 		epochs = arg.epochs if arg.train_f else 0
+		loss_per_epoch = np.zeros(epochs)
+		acc_per_epoch = np.zeros(epochs)
+
 		for epoch in range(epochs):
 			# trainning
 			overall_acc = 0
+			# num_samples, (_, _) = enumerate(dataloaders['train'])
+
 			for batch_idx, (x, target) in enumerate(dataloaders['train']):
 
 				optimizer.zero_grad()
@@ -239,12 +246,19 @@ def main():
 				if batch_idx%100==0:
 					print('==>>> epoch:{}, batch index: {}, train loss:{}, accuracy:{}'.format(epoch,batch_idx, loss.item(), accuracy))
 					logger.info('==>>> epoch:{}, batch index: {}, train loss:{}, accuracy:{}'.format(epoch,batch_idx, loss.item(), accuracy))
-
+				loss_per_epoch[epoch] += loss.item()
+				acc_per_epoch[epoch] += accuracy
 			# save the model per epochs
 			torch.save(model.state_dict(), test_path)
 
+		# saving Training loss and accuracy for results
+			loss_per_epoch[epoch] /= (dataset_sizes['train']/float(batch_size))		
+			acc_per_epoch[epoch] /= (dataset_sizes['train']/float(batch_size))
 
-
+			print('epoch:{}, loss:{}'.format(epoch,loss_per_epoch[epoch]))
+			print('epoch:{}, accuracy:{}'.format(epoch,acc_per_epoch[epoch]))
+		np.save(str(arg.net)+'TrainLoss'+str(arg.dataset)+'.npy', loss_per_epoch)
+		np.save(str(arg.net)+'TrainAccuracy'+str(arg.dataset)+'.npy', acc_per_epoch)
 
 		# testing
 		print("Start Testing")
@@ -287,8 +301,9 @@ def main():
 
 		accuracy = correct*1.0/dataset_sizes['test']
 		ave_loss /= dataset_sizes['test']
-		print('==>>> test loss:{}, accuracy:{}'.format(ave_loss, accuracy))
-		logger.info('==>>> test loss:{}, accuracy:{}'.format(ave_loss, accuracy))
+		print('==>>> test loss:{}, accuracy:{}'.format(ave_loss.item(), accuracy))
+
+		logger.info('==>>> test loss:{}, accuracy:{}'.format(ave_loss.item(), accuracy))
 		allResults = np.zeros(class_num+2)
 		allResults[class_num] = accuracy
 
@@ -300,6 +315,10 @@ def main():
 
 		results.append(allResults)
 		np.save(str(arg.net)+'TestResults'+str(arg.dataset)+'.npy',np.asarray(results))
+
 		np.save(str(arg.net)+'RiskMatrix'+str(arg.dataset)+':testNUM:'+str(numberOfRetests)+'.npy',risk_matrix)
+
+	
+
 if __name__ == "__main__":
 	main()
