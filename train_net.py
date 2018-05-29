@@ -14,6 +14,7 @@ import torchvision.models as models
 from torchvision.models.resnet import model_urls as model_url_resnet
 from torchvision.models.alexnet import model_urls as model_url_alexnet
 from torchvision.models.vgg import model_urls as model_url_vgg
+from torch.utils.data.sampler import SubsetRandomSampler
 
 import argparse
 import logging
@@ -30,6 +31,8 @@ parser.add_argument('--useGPU_f', action='store_true', default=False, help='Flag
 parser.add_argument('--preTrained_f', action='store_true', default=False, help='Flag to pretrained model (default: True)')
 parser.add_argument("--net", default='AlexNet', const='AlexNet',nargs='?', choices=['AlexNet', 'ResNet', 'VGG'], help="net model(default:AlexNet)")
 parser.add_argument("--dataset", default='Emotions', const='Emotions',nargs='?', choices=['Emotions', 'ImageNet'], help="Dataset (default:Emotions)")
+parser.add_argument('--shuffle', action='store_false', default=True, help='Flag to shuffle valid/train dataset (default: True)')
+parser.add_argument('--validation_percent', action='store', default=0.1, type=float, help='float representing validation set size (default: 0.1)')
 # parser.add_argument('')
 
 arg = parser.parse_args()
@@ -101,7 +104,6 @@ def main():
 	results = []
 	image_datasets_all['test'] = []
 	#test on all angles
-	print("hello")
 	for folder in os.listdir(val_path):
          
          image_datasets_all['test'].append(datasets.ImageFolder(os.path.join(val_path),data_transforms['test']))
@@ -116,18 +118,43 @@ def main():
 
 		for i in image_datasets_all:
 			image_datasets[i] = torch.utils.data.ConcatDataset(image_datasets_all[i])
-
-
-		 # use the pytorch data loader
+            
 		arr = ['train', 'test'] if arg.train_f else ['test']
-		print("Data Loading......")
-		dataloaders = {x: torch.utils.data.DataLoader(image_datasets[x], batch_size=batch_size, shuffle=True, num_workers=0)
-				  for x in arr}
-
 		dataset_sizes = {x: len(image_datasets[x]) for x in arr}
 		print("Data Loaded")
-		# number of classes should be 8 for emotion dataset
 
+		 # use the pytorch data loader
+		valid_size = arg.validation_percent #10 percent hold out
+		num_train = len(image_datasets['train'])
+		indices = list(range(num_train))
+		split = int(np.floor(valid_size * num_train))
+
+		if arg.shuffle:
+		    np.random.seed()
+		    np.random.shuffle(indices)
+
+		train_idx, valid_idx = indices[split:], indices[:split]
+		train_sampler = SubsetRandomSampler(train_idx)
+		valid_sampler = SubsetRandomSampler(valid_idx)
+		dataloaders = {}
+		dataloaders['train'] = torch.utils.data.DataLoader(
+		image_datasets['train'], batch_size=batch_size, sampler=train_sampler,
+		num_workers=0
+		)
+		dataloaders['valid'] = torch.utils.data.DataLoader(
+		image_datasets['train'], batch_size=batch_size, sampler=valid_sampler,
+		num_workers=0
+		)
+		dataloaders['test'] = torch.utils.data.DataLoader(
+		image_datasets['test'], batch_size=batch_size, 
+		num_workers=0, 
+		)
+        
+		print("Data Loading......")
+		#dataloaders = {x: torch.utils.data.DataLoader(image_datasets[x], batch_size=batch_size, shuffle=True, num_workers=0)
+		#		  for x in arr}
+
+		# number of classes should be 8 for emotion dataset
 		class_num = len(image_datasets_all['test'][0].classes)
 		# print (class_num)
 		print(dataset_sizes)
@@ -206,12 +233,15 @@ def main():
 		epochs = arg.epochs if arg.train_f else 0
 		loss_per_epoch = np.zeros(epochs)
 		acc_per_epoch = np.zeros(epochs)
-
+		loss_per_epoch_valid = np.zeros(epochs)
+		acc_per_epoch_valid = np.zeros(epochs)
+        
 		for epoch in range(epochs):
 			# trainning
 			overall_acc = 0
 			# num_samples, (_, _) = enumerate(dataloaders['train'])
-
+			overall_acc_valid = 0
+                
 			for batch_idx, (x, target) in enumerate(dataloaders['train']):
 
 				optimizer.zero_grad()
@@ -248,6 +278,40 @@ def main():
 					logger.info('==>>> epoch:{}, batch index: {}, train loss:{}, accuracy:{}'.format(epoch,batch_idx, loss.item(), accuracy))
 				loss_per_epoch[epoch] += loss.item()
 				acc_per_epoch[epoch] += accuracy
+            
+			for batch_idx, (x, target) in enumerate(dataloaders['valid']):
+
+				if use_GPU:
+					x, target = Variable(x.cuda()), Variable(target.cuda())
+				# for cpu mode
+				else:
+					x, target = Variable(x), Variable(target)
+				
+				# use cross entropy loss
+				criterion = nn.CrossEntropyLoss()
+				if use_GPU:
+					outputs = model(x.cuda())
+				else:
+					outputs = model(x)
+				#print("num clsses: " + str(class_num))
+				#print(target)
+				loss = criterion(outputs, target)
+				_, pred_label = torch.max(outputs.data, 1)
+				#print("This is pred label")
+				#print(pred_label)
+				
+				correct = (pred_label == target.data).sum().cpu().data.numpy()
+				overall_acc_valid += correct
+				accuracy = correct*1.0/batch_size
+				#print(batch_idx)
+
+				if batch_idx%100==0:
+					print('==>>> epoch:{}, batch index: {}, valid loss:{}, accuracy:{}'.format(epoch,batch_idx, loss.item(), accuracy))
+					logger.info('==>>> epoch:{}, batch index: {}, valid loss:{}, accuracy:{}'.format(epoch,batch_idx, loss.item(), accuracy))
+				loss_per_epoch_valid[epoch] += loss.item()
+				acc_per_epoch_valid[epoch] += accuracy
+			if accuracy > 0.9:
+			    print("should we break because of validation accuracy?")
 			# save the model per epochs
 			torch.save(model.state_dict(), test_path)
 
