@@ -333,7 +333,7 @@ def main():
 		correct, ave_loss = 0, 0
 		correct_class = np.zeros(class_num)
 		count_class = np.zeros(class_num)
-		risk_matrix = np.zeros((class_num,class_num))
+		confusion_matrix = np.zeros((class_num,class_num))
 		for batch_idx, (x, target) in enumerate(dataloaders['test']):
 			# for gpu mode
 			if use_GPU:
@@ -355,12 +355,12 @@ def main():
 				if pred_label[i] == target.data[i]:
 					correct_class[pred_label[i]] += 1
 				count_class[target.data[i]] += 1
-				risk_matrix[true,predicted]+=1
+				confusion_matrix[true,predicted]+=1
                 
 			correct += (pred_label == target.data).sum().cpu().data.numpy()
 			ave_loss += loss.data[0]
 
-		risk_matrix  = risk_matrix/risk_matrix.sum(axis=1)[:,None]
+		confusion_matrix  = confusion_matrix/confusion_matrix.sum(axis=1)[:,None]
             
 
 		accuracy = correct*1.0/dataset_sizes['test']
@@ -380,7 +380,7 @@ def main():
 		results.append(allResults)
 		np.save(str(arg.net)+'TestResults'+str(arg.dataset)+'.npy',np.asarray(results))
 
-		np.save(str(arg.net)+'RiskMatrix'+str(arg.dataset)+':testNUM:'+str(numberOfRetests)+'.npy',risk_matrix)
+		np.save(str(arg.net)+'ConfusionMatrix'+str(arg.dataset)+':testNUM:'+str(numberOfRetests)+'.npy',confusion_matrix)
 
 	
 
