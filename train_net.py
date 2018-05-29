@@ -106,7 +106,7 @@ def main():
          
          image_datasets_all['test'].append(datasets.ImageFolder(os.path.join(val_path),data_transforms['test']))
 
-	for numberOfRetests in range(4):
+	for numberOfRetests in range(2):
 		image_datasets_all['train'] = []
 		for folder in os.listdir(train_path):
 			print(train_path+'/'+folder)
