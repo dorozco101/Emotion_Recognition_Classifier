@@ -62,14 +62,16 @@ def main():
 	# load the data
 	data_transforms = {
 		'train': transforms.Compose([
-            transforms.Resize(256),
+            transforms.Resize(240),
+            transforms.RandomRotation(1),
             transforms.RandomResizedCrop(224),
             transforms.RandomHorizontalFlip(),
+            transforms.RandomGrayscale(0.08),
             transforms.ToTensor(),
             transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
 		]),
 		'test': transforms.Compose([
-			transforms.Resize(256),
+			transforms.Resize(240),
 			transforms.CenterCrop(224),
 			transforms.ToTensor(),
 			transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
@@ -103,7 +105,7 @@ def main():
          
          image_datasets_all['test'].append(datasets.ImageFolder(os.path.join(val_path),data_transforms['test']))
 
-	for numberOfRetests in range(1):
+	for numberOfRetests in range(4):
 		image_datasets_all['train'] = []
 		for folder in os.listdir(train_path):
 			print(train_path+'/'+folder)
@@ -253,6 +255,7 @@ def main():
 		correct, ave_loss = 0, 0
 		correct_class = np.zeros(class_num)
 		count_class = np.zeros(class_num)
+		risk_matrix = np.zeros((class_num,class_num))
 		for batch_idx, (x, target) in enumerate(dataloaders['test']):
 			# for gpu mode
 			if use_GPU:
@@ -269,14 +272,18 @@ def main():
 			_, pred_label = torch.max(outputs.data, 1)
 
 			for i in range(len(pred_label)):
+				true = target.data[i]
+				predicted = pred_label[i]
 				if pred_label[i] == target.data[i]:
 					correct_class[pred_label[i]] += 1
 				count_class[target.data[i]] += 1
-
+				risk_matrix[true,predicted]+=1
+                
 			correct += (pred_label == target.data).sum().cpu().data.numpy()
 			ave_loss += loss.data[0]
 
-
+		risk_matrix  = risk_matrix/risk_matrix.sum(axis=1)[:,None]
+            
 
 		accuracy = correct*1.0/dataset_sizes['test']
 		ave_loss /= dataset_sizes['test']
@@ -293,6 +300,6 @@ def main():
 
 		results.append(allResults)
 		np.save(str(arg.net)+'TestResults'+str(arg.dataset)+'.npy',np.asarray(results))
-			
+		np.save(str(arg.net)+'RiskMatrix'+str(arg.dataset)+':testNUM:'+str(numberOfRetests)+'.npy',risk_matrix)
 if __name__ == "__main__":
 	main()
