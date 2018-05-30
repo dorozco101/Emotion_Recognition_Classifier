@@ -6,7 +6,7 @@ from torch.autograd import Variable
 import numpy as np
 import torchvision
 from torchvision import datasets, models, transforms
-# import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt
 
 import os
 import copy
@@ -14,6 +14,7 @@ import torchvision.models as models
 from torchvision.models.resnet import model_urls as model_url_resnet
 from torchvision.models.alexnet import model_urls as model_url_alexnet
 from torchvision.models.vgg import model_urls as model_url_vgg
+from torch.utils.data.sampler import SubsetRandomSampler
 
 import argparse
 import logging
@@ -30,6 +31,9 @@ parser.add_argument('--useGPU_f', action='store_true', default=False, help='Flag
 parser.add_argument('--preTrained_f', action='store_true', default=False, help='Flag to pretrained model (default: True)')
 parser.add_argument("--net", default='AlexNet', const='AlexNet',nargs='?', choices=['AlexNet', 'ResNet', 'VGG'], help="net model(default:AlexNet)")
 parser.add_argument("--dataset", default='Emotions', const='Emotions',nargs='?', choices=['Emotions', 'ImageNet'], help="Dataset (default:Emotions)")
+parser.add_argument('--shuffle', action='store_false', default=True, help='Flag to shuffle valid/train dataset (default: True)')
+parser.add_argument('--validation_percent', action='store', default=0.1, type=float, help='float representing validation set size (default: 0.1)')
+# parser.add_argument('')
 
 arg = parser.parse_args()
 
@@ -62,14 +66,16 @@ def main():
 	# load the data
 	data_transforms = {
 		'train': transforms.Compose([
-            transforms.Resize(256),
+            transforms.Resize(240),
+            transforms.RandomRotation(1),
             transforms.RandomResizedCrop(224),
             transforms.RandomHorizontalFlip(),
+            transforms.RandomGrayscale(0.08),
             transforms.ToTensor(),
             transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
 		]),
 		'test': transforms.Compose([
-			transforms.Resize(256),
+			transforms.Resize(240),
 			transforms.CenterCrop(224),
 			transforms.ToTensor(),
 			transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
@@ -98,7 +104,6 @@ def main():
 	results = []
 	image_datasets_all['test'] = []
 	#test on all angles
-	print("hello")
 	for folder in os.listdir(val_path):
          
          image_datasets_all['test'].append(datasets.ImageFolder(os.path.join(val_path),data_transforms['test']))
@@ -113,20 +118,46 @@ def main():
 
 		for i in image_datasets_all:
 			image_datasets[i] = torch.utils.data.ConcatDataset(image_datasets_all[i])
-
-
-		 # use the pytorch data loader
+            
 		arr = ['train', 'test'] if arg.train_f else ['test']
-		print("Data Loading......")
-		dataloaders = {x: torch.utils.data.DataLoader(image_datasets[x], batch_size=batch_size, shuffle=True, num_workers=0)
-				  for x in arr}
-
 		dataset_sizes = {x: len(image_datasets[x]) for x in arr}
 		print("Data Loaded")
-		# number of classes should be 8 for emotion dataset
 
+		 # use the pytorch data loader
+		valid_size = arg.validation_percent #10 percent hold out
+		num_train = len(image_datasets['train'])
+		indices = list(range(num_train))
+		split = int(np.floor(valid_size * num_train))
+
+		if arg.shuffle:
+		    np.random.seed()
+		    np.random.shuffle(indices)
+
+		train_idx, valid_idx = indices[split:], indices[:split]
+		train_sampler = SubsetRandomSampler(train_idx)
+		valid_sampler = SubsetRandomSampler(valid_idx)
+		dataloaders = {}
+		dataloaders['train'] = torch.utils.data.DataLoader(
+		image_datasets['train'], batch_size=batch_size, sampler=train_sampler,
+		num_workers=0
+		)
+		dataloaders['valid'] = torch.utils.data.DataLoader(
+		image_datasets['train'], batch_size=batch_size, sampler=valid_sampler,
+		num_workers=0
+		)
+		dataloaders['test'] = torch.utils.data.DataLoader(
+		image_datasets['test'], batch_size=batch_size, 
+		num_workers=0, 
+		)
+        
+		print("Data Loading......")
+		#dataloaders = {x: torch.utils.data.DataLoader(image_datasets[x], batch_size=batch_size, shuffle=True, num_workers=0)
+		#		  for x in arr}
+
+		# number of classes should be 8 for emotion dataset
 		class_num = len(image_datasets_all['test'][0].classes)
-		print (class_num)
+		# print (class_num)
+		print(dataset_sizes)
 		print("Model Loading...")
 
 		if arg.net == 'AlexNet':
@@ -200,9 +231,19 @@ def main():
 		print("Start Training")
 		logger.info("Start Training")
 		epochs = arg.epochs if arg.train_f else 0
+		loss_per_epoch = np.zeros(epochs)
+		acc_per_epoch = np.zeros(epochs)
+		loss_per_epoch_valid = np.zeros(epochs)
+		acc_per_epoch_valid = np.zeros(epochs)
+        
+		valid_counter = 0
+		prev_loss = np.inf
 		for epoch in range(epochs):
 			# trainning
 			overall_acc = 0
+			# num_samples, (_, _) = enumerate(dataloaders['train'])
+			overall_acc_valid = 0
+                
 			for batch_idx, (x, target) in enumerate(dataloaders['train']):
 
 				optimizer.zero_grad()
@@ -235,14 +276,65 @@ def main():
 
 
 				if batch_idx%100==0:
-					print('==>>> epoch:{}, batch index: {}, train loss:{}, accuracy:{}'.format(epoch,batch_idx, loss.item(), accuracy))
-					logger.info('==>>> epoch:{}, batch index: {}, train loss:{}, accuracy:{}'.format(epoch,batch_idx, loss.item(), accuracy))
+					print('==>>> epoch:{}, batch index: {}, train loss:{}, accuracy:{}%'.format(epoch,batch_idx, loss.item(), accuracy*100))
+					logger.info('==>>> epoch:{}, batch index: {}, train loss:{}, accuracy:{}%'.format(epoch,batch_idx, loss.item(), accuracy*100))
+				loss_per_epoch[epoch] += loss.item()
+				acc_per_epoch[epoch] += accuracy
+            
+			for batch_idx, (x, target) in enumerate(dataloaders['valid']):
+
+				if use_GPU:
+					x, target = Variable(x.cuda()), Variable(target.cuda())
+				# for cpu mode
+				else:
+					x, target = Variable(x), Variable(target)
+				
+				# use cross entropy loss
+				criterion = nn.CrossEntropyLoss()
+				if use_GPU:
+					outputs = model(x.cuda())
+				else:
+					outputs = model(x)
+				#print("num clsses: " + str(class_num))
+				#print(target)
+				loss = criterion(outputs, target)
+				_, pred_label = torch.max(outputs.data, 1)
+				#print("This is pred label")
+				#print(pred_label)
+				
+				correct = (pred_label == target.data).sum().cpu().data.numpy()
+				overall_acc_valid += correct
+				accuracy = correct*1.0/batch_size
+				#print(batch_idx)
+
+				if batch_idx%100==0:
+					print('==>>> epoch:{}, batch index: {}, valid loss:{}, accuracy:{}%'.format(epoch,batch_idx, loss.item(), accuracy*100))
+					logger.info('==>>> epoch:{}, batch index: {}, valid loss:{}, accuracy:{}%'.format(epoch,batch_idx, loss.item(), accuracy*100))
+				loss_per_epoch_valid[epoch] += loss.item()
+				acc_per_epoch_valid[epoch] += accuracy
+			if accuracy > 0.9:
+			    print("should we break because of validation accuracy?")
+
+
+			if loss_per_epoch_valid[epoch] > prev_loss:
+				valid_counter += 1
+				if valid_counter == 3:
+					break
+			else:
+				valid_counter = 0
+			prev_loss = loss_per_epoch_valid[epoch]
 
 			# save the model per epochs
 			torch.save(model.state_dict(), test_path)
 
+		# saving Training loss and accuracy for results
+			loss_per_epoch[epoch] /= (dataset_sizes['train']/float(batch_size))		
+			acc_per_epoch[epoch] /= (dataset_sizes['train']/float(batch_size))
 
-
+			print('epoch:{}, loss:{}'.format(epoch,loss_per_epoch[epoch]))
+			print('epoch:{}, accuracy:{}'.format(epoch,acc_per_epoch[epoch]))
+		np.save(str(arg.net)+'TrainLoss'+str(arg.dataset)+'.npy', loss_per_epoch)
+		np.save(str(arg.net)+'TrainAccuracy'+str(arg.dataset)+'.npy', acc_per_epoch)
 
 		# testing
 		print("Start Testing")
@@ -253,6 +345,7 @@ def main():
 		correct, ave_loss = 0, 0
 		correct_class = np.zeros(class_num)
 		count_class = np.zeros(class_num)
+		confusion_matrix = np.zeros((class_num,class_num))
 		for batch_idx, (x, target) in enumerate(dataloaders['test']):
 			# for gpu mode
 			if use_GPU:
@@ -269,19 +362,24 @@ def main():
 			_, pred_label = torch.max(outputs.data, 1)
 
 			for i in range(len(pred_label)):
+				true = target.data[i]
+				predicted = pred_label[i]
 				if pred_label[i] == target.data[i]:
 					correct_class[pred_label[i]] += 1
 				count_class[target.data[i]] += 1
-
+				confusion_matrix[true,predicted]+=1
+                
 			correct += (pred_label == target.data).sum().cpu().data.numpy()
 			ave_loss += loss.data[0]
 
-
+		confusion_matrix  = confusion_matrix/confusion_matrix.sum(axis=1)[:,None]
+            
 
 		accuracy = correct*1.0/dataset_sizes['test']
 		ave_loss /= dataset_sizes['test']
-		print('==>>> test loss:{}, accuracy:{}'.format(ave_loss, accuracy))
-		logger.info('==>>> test loss:{}, accuracy:{}'.format(ave_loss, accuracy))
+		print('==>>> test loss:{}, accuracy:{}'.format(ave_loss.item(), accuracy))
+
+		logger.info('==>>> test loss:{}, accuracy:{}'.format(ave_loss.item(), accuracy))
 		allResults = np.zeros(class_num+2)
 		allResults[class_num] = accuracy
 
@@ -293,6 +391,10 @@ def main():
 
 		results.append(allResults)
 		np.save(str(arg.net)+'TestResults'+str(arg.dataset)+'.npy',np.asarray(results))
-			
+
+		np.save(str(arg.net)+'ConfusionMatrix'+str(arg.dataset)+':testNUM:'+str(numberOfRetests)+'.npy',confusion_matrix)
+
+	
+
 if __name__ == "__main__":
 	main()
