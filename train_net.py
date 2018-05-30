@@ -108,7 +108,7 @@ def main():
          
          image_datasets_all['test'].append(datasets.ImageFolder(os.path.join(val_path),data_transforms['test']))
 
-	for numberOfRetests in range(2):
+	for numberOfRetests in range(1):
 		image_datasets_all['train'] = []
 		for folder in os.listdir(train_path):
 			print(train_path+'/'+folder)
@@ -236,6 +236,8 @@ def main():
 		loss_per_epoch_valid = np.zeros(epochs)
 		acc_per_epoch_valid = np.zeros(epochs)
         
+		valid_counter = 0
+		prev_loss = np.inf
 		for epoch in range(epochs):
 			# trainning
 			overall_acc = 0
@@ -274,8 +276,8 @@ def main():
 
 
 				if batch_idx%100==0:
-					print('==>>> epoch:{}, batch index: {}, train loss:{}, accuracy:{}'.format(epoch,batch_idx, loss.item(), accuracy))
-					logger.info('==>>> epoch:{}, batch index: {}, train loss:{}, accuracy:{}'.format(epoch,batch_idx, loss.item(), accuracy))
+					print('==>>> epoch:{}, batch index: {}, train loss:{}, accuracy:{}%'.format(epoch,batch_idx, loss.item(), accuracy*100))
+					logger.info('==>>> epoch:{}, batch index: {}, train loss:{}, accuracy:{}%'.format(epoch,batch_idx, loss.item(), accuracy*100))
 				loss_per_epoch[epoch] += loss.item()
 				acc_per_epoch[epoch] += accuracy
             
@@ -306,12 +308,22 @@ def main():
 				#print(batch_idx)
 
 				if batch_idx%100==0:
-					print('==>>> epoch:{}, batch index: {}, valid loss:{}, accuracy:{}'.format(epoch,batch_idx, loss.item(), accuracy))
-					logger.info('==>>> epoch:{}, batch index: {}, valid loss:{}, accuracy:{}'.format(epoch,batch_idx, loss.item(), accuracy))
+					print('==>>> epoch:{}, batch index: {}, valid loss:{}, accuracy:{}%'.format(epoch,batch_idx, loss.item(), accuracy*100))
+					logger.info('==>>> epoch:{}, batch index: {}, valid loss:{}, accuracy:{}%'.format(epoch,batch_idx, loss.item(), accuracy*100))
 				loss_per_epoch_valid[epoch] += loss.item()
 				acc_per_epoch_valid[epoch] += accuracy
 			if accuracy > 0.9:
 			    print("should we break because of validation accuracy?")
+
+
+			if loss_per_epoch_valid[epoch] > prev_loss:
+				valid_counter += 1
+				if valid_counter == 3:
+					break
+			else:
+				valid_counter = 0
+			prev_loss = loss_per_epoch_valid[epoch]
+
 			# save the model per epochs
 			torch.save(model.state_dict(), test_path)
 
