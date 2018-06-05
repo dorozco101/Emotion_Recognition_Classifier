@@ -79,7 +79,6 @@ while(cap.isOpened()):
     
     faces = face_cascade.detectMultiScale(gray, 1.3, 5)
     for (x,y,w,h) in faces:
-            cv2.rectangle(img,(x,y),(x+w,y+h),(255,0,0),2)
             wp = int(w*1.2)
             hp = int(h*1.2)
             xp = int(x-(wp-w)/2.)
@@ -103,6 +102,7 @@ while(cap.isOpened()):
             else:
                 color = (0,0,255)
             cv2.putText(img,text,(x+10,y), FONT, 1,color,2,cv2.LINE_AA)
+            cv2.rectangle(img,(x,y),(x+w,y+h),color,2)
     cv2.imshow('live demo',img)
     if cv2.waitKey(1) & 0xFF == ord('q'):
         break
