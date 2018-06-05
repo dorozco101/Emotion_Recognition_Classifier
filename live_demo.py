@@ -27,7 +27,7 @@ parser.add_argument("--net", default='AlexNet', const='AlexNet',nargs='?', choic
 parser.add_argument("--dataset", default='Emotions', const='Emotions',nargs='?', choices=['Emotions', 'ImageNet'], help="Dataset (default:Emotions)")
 parser.add_argument('--c', '--NumClasses', action='store', default=8, type=float, help='number of classes (default: 8)')
 arg = parser.parse_args()
-MODEL_PATH = './data/old_model_'+arg.net+'_'+str(arg.dataset)+'.pt'
+MODEL_PATH = './old_model_'+arg.net+'_'+str(arg.dataset)+'.pt'
 CLASS_NUM = arg.numClasses
 FONT = cv2.FONT_HERSHEY_SIMPLEX
 classNames = ['anger','contempt','disgust','fear','happy','neutral','sadness','surprise']
@@ -101,7 +101,7 @@ while(cap.isOpened()):
                 color = (0,255,0)
             else:
                 color = (0,0,255)
-            cv2.putText(img,text,(x+10,y), FONT, 1,color,2,cv2.LINE_AA)
+            cv2.putText(img,text,(x,y+15), FONT, 1,color,2,cv2.LINE_AA)
             cv2.rectangle(img,(x,y),(x+w,y+h),color,2)
     cv2.imshow('live demo',img)
     if cv2.waitKey(1) & 0xFF == ord('q'):
