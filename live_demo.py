@@ -25,7 +25,9 @@ parser = argparse.ArgumentParser(description='Emotion Detection Demo')
 parser.add_argument('--useGPU_f', action='store_true', default=False, help='Flag to use GPU (STORE_FALSE)(default: False)')
 parser.add_argument("--net", default='AlexNet', const='AlexNet',nargs='?', choices=['AlexNet', 'ResNet', 'VGG'], help="net model(default:AlexNet)")
 parser.add_argument("--dataset", default='Emotions', const='Emotions',nargs='?', choices=['Emotions', 'ImageNet'], help="Dataset (default:Emotions)")
-parser.add_argument('--c', '--NumClasses', action='store', default=8, type=float, help='number of classes (default: 8)')
+parser.add_argument('-c', '--numClasses', action='store', default=8, type=float, help='number of classes (default: 8)')
+parser.add_argument('--preTrained_f', action='store_true', default=False, help='Flag to pretrained model (default: True)')
+
 arg = parser.parse_args()
 MODEL_PATH = './old_model_'+arg.net+'_'+str(arg.dataset)+'.pt'
 CLASS_NUM = arg.numClasses
@@ -89,12 +91,16 @@ while(cap.isOpened()):
                 yp = 0
             crop_img = img[yp:yp+hp, xp:xp+wp]
             #TODO Feed crop_img into pytorch network and label
-            img_tensor = preprocess(img)
+            imgPIL = transforms.functional.to_pil_image(img)
+            img_tensor = preprocess(imgPIL)
             img_tensor.unsqueeze_(0)
-            img_variable = torch.Variable(img_tensor)
+            img_variable = torch.autograd.Variable(img_tensor)
+            
             #label should be converted to int here
-            labelNum = 1
-            label = classNames[labelNum]
+            labelNum = model(img_variable).cpu().data.numpy()
+            print(labelNum)
+
+            label = classNames[np.argmax(labelNum)]
             text = "Facial Expression: " +label
             
             if label == 'happy' or label == 'neutral' or label == 'surprise':
