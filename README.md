@@ -8,7 +8,7 @@ python3
 pytorch, torchvision
 opencv2
 
-# TO RUN
+# TO TRAIN
 In the current working directory type:\
 	python3 train_net.py --help\ 
 To display a list of commands
@@ -17,3 +17,10 @@ Tor run training and testing at once type:\
 	python3 train_net.py -e=50 
 
 Use --useGPU_f to enable GPU acceleration
+
+# TO TRAIN
+IN the current working directory type:\
+	python3 train_net.py --train_f
+
+Use --useGPU_f to enable GPU acceleration
+
