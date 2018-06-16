@@ -22,7 +22,7 @@ import logging
 
 parser = argparse.ArgumentParser(description='PyTorch AlexNet Training')
 parser.add_argument('-e', '--epochs', action='store', default=10, type=int, help='epochs (default: 10)')
-parser.add_argument('--batchSize', action='store', default=128, type=int, help='batch size (default: 128)')
+parser.add_argument('--batchSize', action='store', default=32, type=int, help='batch size (default: 128)')
 parser.add_argument('--lr', '--learning-rate', action='store', default=0.01, type=float, help='learning rate (default: 0.01)')
 parser.add_argument('--m', '--momentum', action='store', default=0.9, type=float, help='momentum (default: 0.9)')
 parser.add_argument('--train_f', action='store_false', default=True, help='Flag to train (STORE_FALSE)(default: True)')
@@ -33,7 +33,8 @@ parser.add_argument("--net", default='AlexNet', const='AlexNet',nargs='?', choic
 parser.add_argument("--dataset", default='Emotions', const='Emotions',nargs='?', choices=['Emotions', 'ImageNet'], help="Dataset (default:Emotions)")
 parser.add_argument('--shuffle', action='store_false', default=True, help='Flag to shuffle valid/train dataset (default: True)')
 parser.add_argument('--validation_percent', action='store', default=0.1, type=float, help='float representing validation set size (default: 0.1)')
-# parser.add_argument('')
+parser.add_argument('--earlyStop', action='store', default=2, type=int, help='subsequent epocs for early stopping')
+parser.add_argument('--testPath', action='store', default='test', type=str, help='Specify which set of images to test in ./data')
 
 arg = parser.parse_args()
 
@@ -48,7 +49,7 @@ class ConcatDataset(torch.utils.data.Dataset):
 		return min(len(d) for d in self.datasets)
 
 def main():
-	# create model directory to store/load old mode
+	# create model directory to store/load old model
 	if not os.path.exists('model'):
 		os.makedirs('model')
 	if not os.path.exists('log'):
@@ -84,7 +85,8 @@ def main():
 	
 	if arg.dataset == 'Emotions':
 		train_path = './data/train'
-		val_path = './data/test'
+		val_path = './data/'+ str(arg.testPath)
+		# val_path = './data/Eugene_Emo'
 	elif arg.dataset == 'ImageNet':
 		#these paths need to be updated to something local
 		train_path = '/data/imgDB/DB/ILSVRC/2012/train'
@@ -192,9 +194,10 @@ def main():
 				model.fc= nn.Linear(512, out_features=class_num)
 			else:
 				model.classifier._modules['6']= nn.Linear(4096, out_features=class_num)  
+
 		#optimizer must match the number of trainable parameters (should not include non trainable layers)
 		if not arg.train_all_para_f:
-			optimizer = optim.SGD(params=[model.fc.weight, model.fc.bias], lr=arg.lr, momentum=arg.m)
+			optimizer = optim.SGD(params=[model.classifier._modules['6'].weight, model.classifier._modules['6'].bias], lr=arg.lr, momentum=arg.m)
 		else:
 			optimizer = optim.SGD(model.parameters(), lr=arg.lr, momentum=arg.m)
 		print("Optimizer Set")
@@ -237,7 +240,10 @@ def main():
 		acc_per_epoch_valid = np.zeros(epochs)
         
 		valid_counter = 0
-		prev_loss = np.inf
+		prev_acc = 0
+		max_acc = 0
+		# stop_train = False
+
 		for epoch in range(epochs):
 			# trainning
 			overall_acc = 0
@@ -256,10 +262,8 @@ def main():
 				
 				# use cross entropy loss
 				criterion = nn.CrossEntropyLoss()
-				if use_GPU:
-					outputs = model(x.cuda())
-				else:
-					outputs = model(x)
+
+				outputs = model(x)
 				#print("num clsses: " + str(class_num))
 				#print(target)
 				loss = criterion(outputs, target)
@@ -280,7 +284,8 @@ def main():
 					logger.info('==>>> epoch:{}, batch index: {}, train loss:{}, accuracy:{}%'.format(epoch,batch_idx, loss.item(), accuracy*100))
 				loss_per_epoch[epoch] += loss.item()
 				acc_per_epoch[epoch] += accuracy
-            
+
+			overall_acc_valid = 0
 			for batch_idx, (x, target) in enumerate(dataloaders['valid']):
 
 				if use_GPU:
@@ -291,10 +296,8 @@ def main():
 				
 				# use cross entropy loss
 				criterion = nn.CrossEntropyLoss()
-				if use_GPU:
-					outputs = model(x.cuda())
-				else:
-					outputs = model(x)
+
+				outputs = model(x)
 				#print("num clsses: " + str(class_num))
 				#print(target)
 				loss = criterion(outputs, target)
@@ -303,38 +306,60 @@ def main():
 				#print(pred_label)
 				
 				correct = (pred_label == target.data).sum().cpu().data.numpy()
-				overall_acc_valid += correct
 				accuracy = correct*1.0/batch_size
-				#print(batch_idx)
+				overall_acc_valid += accuracy
+				
+				print(overall_acc_valid)
+
+
 
 				if batch_idx%100==0:
 					print('==>>> epoch:{}, batch index: {}, valid loss:{}, accuracy:{}%'.format(epoch,batch_idx, loss.item(), accuracy*100))
 					logger.info('==>>> epoch:{}, batch index: {}, valid loss:{}, accuracy:{}%'.format(epoch,batch_idx, loss.item(), accuracy*100))
-				loss_per_epoch_valid[epoch] += loss.item()
-				acc_per_epoch_valid[epoch] += accuracy
-			if accuracy > 0.9:
-			    print("should we break because of validation accuracy?")
+
+						
+						
 
 
-			if loss_per_epoch_valid[epoch] > prev_loss:
-				valid_counter += 1
-				if valid_counter == 3:
-					break
-			else:
+			print("Total valid accuracy for epoch: {}%".format(overall_acc_valid))
+			# loss_per_epoch_valid[epoch] += loss.item()
+			acc_per_epoch_valid[epoch] = overall_acc_valid
+
+			if overall_acc_valid > max_acc:
+				print("Resetting counter")
+				# save the model per epochs
+				print("Saving new best model")
+				torch.save(model.state_dict(), test_path)
 				valid_counter = 0
-			prev_loss = loss_per_epoch_valid[epoch]
 
-			# save the model per epochs
-			torch.save(model.state_dict(), test_path)
+			elif overall_acc_valid < prev_acc:
+				valid_counter += 1
+				print("Incrementing counter to {}".format(valid_counter))
+			max_acc = overall_acc_valid
+			prev_acc = overall_acc_valid
 
-		# saving Training loss and accuracy for results
-			loss_per_epoch[epoch] /= (dataset_sizes['train']/float(batch_size))		
-			acc_per_epoch[epoch] /= (dataset_sizes['train']/float(batch_size))
+			print('Max valid accuracy: {}%'.format(max_acc))
 
-			print('epoch:{}, loss:{}'.format(epoch,loss_per_epoch[epoch]))
-			print('epoch:{}, accuracy:{}'.format(epoch,acc_per_epoch[epoch]))
-		np.save(str(arg.net)+'TrainLoss'+str(arg.dataset)+'.npy', loss_per_epoch)
-		np.save(str(arg.net)+'TrainAccuracy'+str(arg.dataset)+'.npy', acc_per_epoch)
+
+			if accuracy > 0.9:
+				print("should we break because of validation accuracy?")
+
+			if valid_counter > arg.earlyStop:
+				print("LOOPS SHOULD STOP BY NOW")
+				break
+
+
+
+			
+
+	# saving Training loss and accuracy for results
+		# loss_per_epoch[epoch] /= (dataset_sizes['train']/float(batch_size))		
+		# acc_per_epoch[epoch] /= (dataset_sizes['train']/float(batch_size))
+
+		# print('epoch:{}, loss:{}'.format(epoch,loss_per_epoch[epoch]))
+		# print('epoch:{}, accuracy:{}'.format(epoch,acc_per_epoch[epoch]))
+		# np.save(str(arg.net)+'TrainLoss'+str(arg.dataset)+'.npy', loss_per_epoch)
+		# np.save(str(arg.net)+'TrainAccuracy'+str(arg.dataset)+'.npy', acc_per_epoch)
 
 		# testing
 		print("Start Testing")
